@@ -668,8 +668,17 @@ var KeywordToolbarObject = {
 	 * @param Document doc 
 	 */
 	document_keywords: function(doc) {
-		var title = doc.title;
-		this.build_ngrams(doc.body.textContent);
+		var start = new Date().getTime();
+		var title_ngrams = this.build_ngrams(doc.title, false);		
+		this.build_ngrams(doc.body.textContent, false);
+		var end = new Date().getTime();
+
+		/*
+		 * Simply use wall time to benchmark how we are doing. This will also 
+		 * capture the time it takes for responses to alert()s.
+		 *
+		 */
+		alert("Elapsed Time: "+(end-start));
 	},
 
 
@@ -679,7 +688,7 @@ var KeywordToolbarObject = {
 	 * @param String str
 	 * @return Array
 	 */
-	build_ngrams: function(str) {
+	build_ngrams: function(str, title_ngrams) {
 		/*
 		 * In order to preserve lexical delimiters the string is broken into a 
 		 * series of "blocks" each block represents a line or sentence in the 
@@ -706,11 +715,71 @@ var KeywordToolbarObject = {
 
 		ngrams = this.sortAssoc(ngrams);
 
+		/* 
+		 * Filter out n-grams with few hits (only if we have n-grams that 
+		 * clearly take stand out in terms of hit count). This will help save on
+		 * needless processing down the road. This seems to cut out about 80%+ 
+		 * of the n-grams. 
+		 */
+		if (ngrams[this.get_first_assoc_key(ngrams)] > 2) {
+			var ngrams_tmp = Array();
+			for (var i in ngrams) {
+				if (ngrams[i] > 1) {
+					ngrams_tmp[i] = ngrams[ngrams_tmp];
+				}
+			}
+			ngrams = ngrams_tmp;
+			ngrams_tmp = Array();
+		}
+
+
+		/*
+		 * Build ranking information for the remaining n-grams
+		 */
+		var ngrams_ranked = Array();
+		for (var i in ngrams) {
+			var words = i.split(" ");
+
+			/* Determine percentage of stop words */
+			var stop_word_count = 0;
+			var stop_word_percent = 0;
+			var trailing_stop_word = false;
+			for (var j = 0; j < words.length; j++) {
+				if (typeof this.stop_words[words[j]] != "undefined") {
+					stop_word_count++;
+
+					if (j == words.length-1) {
+						trailing_stop_word = true;
+					}
+				}
+			}
+
+			stop_word_percent = stop_word_count/words.length;
+
+
+			/* Check for existance in the document title */
+			var in_title = false;
+			if (title_ngrams !== false && typeof title_ngrams[i] != "undefined") {
+				in_title = true;
+			}
+
+			
+			/*
+			 * Calculate Rank: 
+			 *   Criteria:
+			 *     1) Minimize number of stop words
+			 *     2) Severely penalize n-grams that end in a stop word
+			 *     3) Give preference to n-grams which also appear in the title
+			 *     4) Give preference to n-grams which occur more frequently
+			 */
+		}
+
+
 		var ngram_count = 0;
 		var alertstr = "";
 		for (var i in ngrams) {
 			ngram_count++;
-			alertstr += "["+i+"] = \""+ngrams[i]+"\"\n";
+			alertstr += "["+i+"] = "+ngrams[i]+"\n";
 		}
 		alert(ngram_count);
 		alert(alertstr);
@@ -810,6 +879,13 @@ var KeywordToolbarObject = {
 
 		return aOutput;
 	},
+
+
+	get_first_assoc_key: function(arr) {
+		for (var i in arr) {
+			return i;
+		}
+	}
 };
 
 
