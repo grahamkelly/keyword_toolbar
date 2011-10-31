@@ -1,3 +1,43 @@
+/**
+ * Keyword Toolbar is a Firefox toolbar extension which (upon a button press) 
+ * presents the user with a list of keywords that appear in the web page they 
+ * are viewing. The keywords are based on n-grams extracted from the text. 
+ *
+ *
+ * N-gram Ranking Ideas:
+ *   1) Occurences: (simple) N-grams which occure more often are probably more 
+ *        likely to be what the document is about.
+ *        Problem: Web pages which feature repetative strucutres (such as 
+ *                 comment systems) often have maningless n-grams which are 
+ *                 repeated many times. These n-grams gravitate towards to the
+ *                 top of the sorted n-gram list and thus pollute the results.  
+ *        Solution: It may be possible to store all the HTML paths that an 
+ *                  n-gram occures at (i.e. <div><div><p>...). A filtering step
+ *                  could be applied after all n-grams are detected to look for 
+ *                  patterns in the HTML paths and remove any n-grams which are 
+ *                  dominated by similar paths. 
+ *
+ *  2) Percentage of stop words: A Lower rank could be given to n-grams which 
+ *       feature a large percentage of stop words as it is more likely to be a 
+ *       meaningless n-gram. 
+ *
+ *  3) Part of Speech Tagging: This isnt an exact system but people generally 
+ *       view the important part of a document to be the nouns. A higher rank 
+ *       could be given to any n-gram that features nouns. 
+ *
+ *  4) Length: It is unclear if longer n-grams are better than short ones or 
+ *      vice versa. Longer n-grams might represent a more complete thought but 
+ *      shorter n-grams might be more to the point. Additionally often times the
+ *      longer n-grams appear to just be the same as a shorter n-gram but with 
+ *      some junk included. Maybe a filtering operation could be applied to look
+ *      for relationships between ngrams of similar ranking and lexical makeup. 
+ *
+ *  5) In title: A higher rank could be given to n-grams which appear both in 
+ *       the document title and in the body.
+ *       How much of a boost to the score should they be given???
+ *
+ * 
+ */
 var KeywordToolbarObject = {
 	/*
 	 * An upper limit to the number of words that can make up an n-gram. If this
