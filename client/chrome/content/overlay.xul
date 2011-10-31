@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<overlay id="TutTB-Overlay"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+         
+	<script type="application/x-javascript"
+            src="chrome://keyword_toolbar/content/script.js" />
+
+    <toolbox id="navigator-toolbox">
+    
+        <toolbar id="TutTB-Toolbar" toolbarname="Find stuff for me toolbar" accesskey="T"
+                 class="chromeclass-toolbar" context="toolbar-context-menu" 
+                 hidden="false" persist="hidden">
+                 
+            <toolbarbutton id="TutTB-MainMenu" type="menu"
+                           tooltiptext="Tutorial Toolbar Main Menu">
+                <menupopup>
+                    <menuitem label="Google Home Page" accesskey="G"
+                              tooltiptext="Navigate to Google"
+                              oncommand="KeywordToolbarObject.get_keywords_button(event);" />
+                    
+                    <menuseparator />
+                    
+                    <menuitem label="Born Geek Website" accesskey="B"
+                              tooltiptext="Navigate to Born Geek"
+                              oncommand="KeywordToolbarObject.get_keywords_button(event);" />
+                </menupopup>
+            </toolbarbutton>
+            
+            <toolbaritem id="TutTB-SearchTerms-TBItem" persist="width">
+                <menulist id="TutTB-SearchTerms" editable="true" flex="1"
+                          minwidth="100" width="250"
+                          onkeypress="objTutorialToolbar.KeyHandler(event);">
+                    <menupopup id="TutTB-SearchTermsMenu" onpopupshowing="objTutorialToolbar.Populate()" />
+                </menulist>
+            </toolbaritem>
+            
+            <splitter id="TutTB-ResizeSplitter" state="open" collapse="none"
+                      resizebefore="closest" resizeafter="farthest"
+                      tooltiptext="Resize the Search Box">
+                <vbox id="TutTB-ResizeBar" />
+            </splitter>
+            
+            <toolbaritem flex="0">
+            
+                <toolbarbutton id="TutTB-Combined-Button" label="Search3"
+                               type="menu-button" tooltiptext="Combined Search"
+                               oncommand="objTutorialToolbar.Search(event, 'web')">
+                    <menupopup>
+                        <menuitem id="TutTB-Combined-Web" label="Web Search"
+                                  class="menuitem-iconic" tooltiptext="Search the Web"
+                                  oncommand="objTutorialToolbar.Search(event, 'web'); event.stopPropagation();" />
+                    
+                        <menuitem id="TutTB-Combined-Image" label="Image Search"
+                                  class="menuitem-iconic" tooltiptext="Search Images"
+                                  oncommand="objTutorialToolbar.Search(event, 'image'); event.stopPropagation();" />
+                    </menupopup>
+                </toolbarbutton>
+                
+                <toolbarbutton id="TutTB-Web-Button" tooltiptext="List all the keywords in this document"
+                               label="Keywords" oncommand="KeywordToolbarObject.keyword_button(event);" />
+            </toolbaritem>
+        </toolbar>
+    </toolbox>
+</overlay>
+
+
