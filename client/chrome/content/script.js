@@ -1,3 +1,6 @@
+var KEYWORD_TOOLBAR_DEV_MODE = true;
+
+
 /**
  * Keyword Toolbar is a Firefox toolbar extension which (upon a button press) 
  * presents the user with a list of keywords that appear in the web page they 
@@ -46,11 +49,9 @@ var KeywordToolbarObject = {
 	 * and thus waste memory. If the value is too low we migth not capture the 
 	 * full n-grams to extract as keywords fromt he content. 
 	 *
-	 * A valuye of 5 was arbitraily chosen but seems to work well as it 
-	 * produces < 10,000 n-grams for failry wordy pages (i.e. a news article on
-	 * cnn.com).
+	 * Only bigrams are being used as per the project specification. 
 	 */
-	max_ngram_size: 5,
+	max_ngram_size: 2,
 /*
 	pos_lexer: null,
 	pos_tagger: null,
@@ -74,6 +75,7 @@ var KeywordToolbarObject = {
 		"afterwards",
 		"again",
 		"against",
+		"ago",
 		"aint",
 		"all",
 		"allow",
@@ -713,7 +715,8 @@ var KeywordToolbarObject = {
 			}
 		}
 
-		ngrams = this.sortAssoc(ngrams);
+		ngrams = this.sort_assoc_desc(ngrams);
+		var max_occurences = ngrams[this.get_first_assoc_key(ngrams)];
 
 		/* 
 		 * Filter out n-grams with few hits (only if we have n-grams that 
@@ -721,11 +724,11 @@ var KeywordToolbarObject = {
 		 * needless processing down the road. This seems to cut out about 80%+ 
 		 * of the n-grams. 
 		 */
-		if (ngrams[this.get_first_assoc_key(ngrams)] > 2) {
+		if (max_occurences > 2) {
 			var ngrams_tmp = Array();
 			for (var i in ngrams) {
 				if (ngrams[i] > 1) {
-					ngrams_tmp[i] = ngrams[ngrams_tmp];
+					ngrams_tmp[i] = ngrams[i];
 				}
 			}
 			ngrams = ngrams_tmp;
@@ -737,12 +740,18 @@ var KeywordToolbarObject = {
 		 * Build ranking information for the remaining n-grams
 		 */
 		var ngrams_ranked = Array();
+		
+		/* Tuning parameters */
+		var in_title_reward = 2; /* Give a big boost to something in the title */
+		var trailing_stop_word_penalty = 0.25; /* Give a severe penalty is junk is at the end of an n-gram */
+
+		var normalizer = (in_title_reward)*(1);
+
 		for (var i in ngrams) {
 			var words = i.split(" ");
 
 			/* Determine percentage of stop words */
 			var stop_word_count = 0;
-			var stop_word_percent = 0;
 			var trailing_stop_word = false;
 			for (var j = 0; j < words.length; j++) {
 				if (typeof this.stop_words[words[j]] != "undefined") {
@@ -753,8 +762,6 @@ var KeywordToolbarObject = {
 					}
 				}
 			}
-
-			stop_word_percent = stop_word_count/words.length;
 
 
 			/* Check for existance in the document title */
@@ -771,17 +778,38 @@ var KeywordToolbarObject = {
 			 *     2) Severely penalize n-grams that end in a stop word
 			 *     3) Give preference to n-grams which also appear in the title
 			 *     4) Give preference to n-grams which occur more frequently
+			 *
+			 * Ranking Algorithm:
+			 *   Modifiers = (in_title_reward)*(trailing_stop_word_penalty)
+			 *   Normalizer = Modifier*(1+1)  (Modifier in this case is 
+			 *                                 caluclated with all rewards and 
+			 *                                 no penalties)
+			 * 
+			 *   Rank = (Modifier*(0.8*(num_occurences/max_occurences)+0.2*(stop_word_count/word_count)))/Normalizer
+			 * 
 			 */
+			var modifier = (in_title ? in_title_reward : 1)*(trailing_stop_word ? trailing_stop_word_penalty : 1);
+			var rank = (modifier*((0.8*(ngrams[i]/max_occurences))+(0.2*(stop_word_count/words.length))))/normalizer;
+
+			ngrams_ranked[i] = rank;
 		}
 
+		ngrams_ranked = this.sort_assoc_desc(ngrams_ranked);
 
 		var ngram_count = 0;
+		var alertstr = "";
+		for (var i in ngrams_ranked) {
+			ngram_count++;
+			alertstr += "["+i+"] = "+ngrams_ranked[i]+"\n";
+		}
+		alert(ngram_count);
+		alert(alertstr);
+
 		var alertstr = "";
 		for (var i in ngrams) {
 			ngram_count++;
 			alertstr += "["+i+"] = "+ngrams[i]+"\n";
 		}
-		alert(ngram_count);
 		alert(alertstr);
 	},
 
@@ -845,10 +873,17 @@ var KeywordToolbarObject = {
 			var stop_words_count = 0;
 
 			for (var j = i; j < (i+this.max_ngram_size) && j < words.length; j++) {
+				/* TODO: Would creating a cache for the stemmed words improve performance? */
 				ngram_index += " "+stemmer(words[j]);
 				ngram_text += " "+words[j];	
 
-				if (typeof this.stop_words[words[j]] != "undefined") {
+				if (stop_words_count == (j-i) && typeof this.stop_words[words[j]] != "undefined") {
+					/*
+					 * stop_words_count == (j-i) :: used to remove the hashtable
+					 * lookup when we already know this ngram is not 100% stop 
+					 * words. Hopefully this will remove all but the initial 
+					 * hashtable lookup for most n-grams. 
+					 */
 					stop_words_count++;
 				}
 
@@ -866,7 +901,13 @@ var KeywordToolbarObject = {
 	},
 
 
-	sortAssoc: function(aInput) {
+	/**
+	 * Sorts an associative array by its value in descending order. 
+	 *
+	 * @param Array aInput
+	 * @return Array
+	 */
+	sort_assoc_desc: function(aInput) {
 		var aTemp = [];
 		for (var sKey in aInput)
 			aTemp.push([sKey, aInput[sKey]]);
@@ -881,11 +922,17 @@ var KeywordToolbarObject = {
 	},
 
 
+	/**
+	 * Returns the key of the first element in the associative array. 
+	 *
+	 * @param Array arr
+	 * @return String
+	 */
 	get_first_assoc_key: function(arr) {
 		for (var i in arr) {
 			return i;
 		}
-	}
+	},
 };
 
 
@@ -1083,7 +1130,14 @@ var stemmer = (function(){
 })();
 
 
+if (KEYWORD_TOOLBAR_DEV_MODE) {
+	/*
+	 * Firefox is pretty annoying in that you have no way of knowing when you
+	 * have a syntax error and it decided to throw out all your JS. So a simple
+	 * alert will let us know we are A okay in regards to compiler issues. 
+	 */
+	alert("NO SYNTAX ERROR\n");
+}
 
-alert("NO SYNTAX ERROR\n");
 KeywordToolbarObject.init();
 
