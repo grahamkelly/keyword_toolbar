@@ -57,6 +57,9 @@ var KeywordToolbarObject = {
 	pos_tagger: null,
 */	
 
+	stemmer_map: Array(),
+
+
 	/*
 	 * Stop words are common words that are most likely do not represent the 
 	 * main focus of the web page content. They are simply filler words. This is
@@ -650,6 +653,9 @@ var KeywordToolbarObject = {
 		}
 
 		this.stop_words = stop_words_assoc;
+
+		this.pos_lexer = new Lexer();
+		this.pos_tagger = new POSTagger();
 	},
 
 
@@ -659,7 +665,18 @@ var KeywordToolbarObject = {
 	 * @param Event event
 	 */
 	keyword_button: function(event) {
-		this.document_keywords(gBrowser.contentDocument);
+		var keywords = this.document_keywords(gBrowser.contentDocument);
+
+		var keywords_str = "";
+		for (var i = 0; i < keywords.length; i++) {
+			if (i > 0) {
+				keywords_str += " | ";
+			}
+
+			keywords_str += keywords[i];
+		}
+
+		alert(keywords_str);
 	},
 
 
@@ -672,7 +689,35 @@ var KeywordToolbarObject = {
 	document_keywords: function(doc) {
 		var start = new Date().getTime();
 		var title_ngrams = this.build_ngrams(doc.title, false);		
-		this.build_ngrams(doc.body.textContent, false);
+
+		var document_ngrams = this.build_ngrams(doc.body.textContent, false);
+
+
+		/* Trim the n-grams down to the top 10 and clean them up */
+		var keywords = Array();
+		document_ngrams = this.assoc_slice(document_ngrams, 10);
+
+		for (var i in document_ngrams) {
+			/* Attempt to un-stem words */
+			var words = i.split(" ");
+			var keyword = "";
+			for (j = 0; j < words.length; j++) {
+				if (j > 0) {
+					keyword += " ";
+				}
+
+				if (typeof this.stemmer_map[words[j]] != "undefined") {
+					keyword += this.stemmer_map[words[j]];
+				} else {
+					keyword += words[j];
+				}
+			}
+
+			keywords.push(this.capitalize_ngram(keyword));
+		}
+
+		alert(keywords.length);
+
 		var end = new Date().getTime();
 
 		/*
@@ -680,7 +725,10 @@ var KeywordToolbarObject = {
 		 * capture the time it takes for responses to alert()s.
 		 *
 		 */
-		alert("Elapsed Time: "+(end-start));
+		//alert("Elapsed Time: "+(end-start));
+
+		
+		return keywords;
 	},
 
 
@@ -745,6 +793,10 @@ var KeywordToolbarObject = {
 		var in_title_reward = 2; /* Give a big boost to something in the title */
 		var trailing_stop_word_penalty = 0.25; /* Give a severe penalty is junk is at the end of an n-gram */
 
+		var occurence_weight = 0.50;
+		var stop_word_weight = 0.25;
+		var noun_weight = 0.25;
+
 		var normalizer = (in_title_reward)*(1);
 
 		for (var i in ngrams) {
@@ -764,6 +816,27 @@ var KeywordToolbarObject = {
 			}
 
 
+			/* Count the number of nouns */
+			var noun_count = 0;
+			var pos_words = this.pos_lexer.lex(i);
+			var pos_tags = this.pos_tagger.tag(pos_words);
+
+			for (j in pos_tags) {
+				var tag = pos_tags[j][1];
+
+				/*
+				 * We are looking for: 
+				 *   NN:    Noun
+				 *   NNP:   Proper Noun
+                 *   NNPS:  Proper Noun Plural
+				 *   NNS:   Noun Plural
+				 */
+				if (tag == "NN" || tag == "NNP" || tag == "NNPS" || tag == "NNS") {
+					noun_count++;
+				}
+			}
+
+
 			/* Check for existance in the document title */
 			var in_title = false;
 			if (title_ngrams !== false && typeof title_ngrams[i] != "undefined") {
@@ -776,41 +849,37 @@ var KeywordToolbarObject = {
 			 *   Criteria:
 			 *     1) Minimize number of stop words
 			 *     2) Severely penalize n-grams that end in a stop word
+			 *     3) Give preference to n-grams that have a higher occurence of
+			 *        nouns. 
 			 *     3) Give preference to n-grams which also appear in the title
 			 *     4) Give preference to n-grams which occur more frequently
 			 *
 			 * Ranking Algorithm:
 			 *   Modifiers = (in_title_reward)*(trailing_stop_word_penalty)
-			 *   Normalizer = Modifier*(1+1)  (Modifier in this case is 
+			 *   Normalizer = Modifier*(1)  (Modifier in this case is 
 			 *                                 caluclated with all rewards and 
 			 *                                 no penalties)
 			 * 
-			 *   Rank = (Modifier*(0.8*(num_occurences/max_occurences)+0.2*(stop_word_count/word_count)))/Normalizer
+			 *   Rank = (Modifier*(
+			 *                      occurence_weight*(num_occurences/max_occurences) + 
+			 *                      stop_word_weight*(stop_word_count/word_count) + 
+			 *                      noun_weight*(noun_count/word_count)
+			 *           ))/Normalizer
 			 * 
 			 */
 			var modifier = (in_title ? in_title_reward : 1)*(trailing_stop_word ? trailing_stop_word_penalty : 1);
-			var rank = (modifier*((0.8*(ngrams[i]/max_occurences))+(0.2*(stop_word_count/words.length))))/normalizer;
+			var rank = (modifier*(
+			                       (occurence_weight*(ngrams[i]/max_occurences)) + 
+			                       (stop_word_weight*(stop_word_count/words.length)) + 
+			                       (noun_weight*(noun_count/words.length))
+			            ))/normalizer;
 
 			ngrams_ranked[i] = rank;
 		}
 
 		ngrams_ranked = this.sort_assoc_desc(ngrams_ranked);
 
-		var ngram_count = 0;
-		var alertstr = "";
-		for (var i in ngrams_ranked) {
-			ngram_count++;
-			alertstr += "["+i+"] = "+ngrams_ranked[i]+"\n";
-		}
-		alert(ngram_count);
-		alert(alertstr);
-
-		var alertstr = "";
-		for (var i in ngrams) {
-			ngram_count++;
-			alertstr += "["+i+"] = "+ngrams[i]+"\n";
-		}
-		alert(alertstr);
+		return ngrams_ranked;
 	},
 
 
@@ -829,7 +898,7 @@ var KeywordToolbarObject = {
 		 * amongst n-grams and strip out unwanted characters.  
 		 */
 		str = str.toLowerCase();
-		str = str.replace(/^\s+|\s+$|[\!\@\#\%\^\&\*\(\)\?\_\-\+\=\/\~\`\:\;\<\>\"\{\}\[\]\|\\]/g, '');
+		str = str.replace(/^\s+|\s+$|[\!\@\#\%\^\&\*\(\)\?\_\+\=\/\~\`\:\;\<\>\"\{\}\[\]\|\\]/g, '');
 
 		if (str.length == 0 || str == ".") {
 			return ngrams;
@@ -874,8 +943,15 @@ var KeywordToolbarObject = {
 
 			for (var j = i; j < (i+this.max_ngram_size) && j < words.length; j++) {
 				/* TODO: Would creating a cache for the stemmed words improve performance? */
+				var word_stemmed = stemmer(words[j]);	
 				ngram_index += " "+stemmer(words[j]);
 				ngram_text += " "+words[j];	
+
+				if (word_stemmed != words[j]) {
+					if (typeof this.stemmer_map[word_stemmed] == "undefined") {
+						this.stemmer_map[word_stemmed] = words[j];
+					}
+				}
 
 				if (stop_words_count == (j-i) && typeof this.stop_words[words[j]] != "undefined") {
 					/*
@@ -898,6 +974,81 @@ var KeywordToolbarObject = {
 		}
 
 		return ngrams;
+	},
+
+
+	/**
+	 * Capitalizes an n-gram for display as a keyword. 
+	 * 
+	 * @param String ngram
+	 * @return String
+	 */
+	capitalize_ngram: function(ngram) {
+		var pos_words = this.pos_lexer.lex(ngram);
+		var pos_tags = this.pos_tagger.tag(pos_words);
+
+		var first_word = true;
+		var ngram_capitalized = "";
+
+		for (var i in pos_tags) {
+			var word = pos_tags[i][0];
+			var tag  = pos_tags[i][1];
+
+			if (first_word) {
+				ngram_capitalized = this.capitalize_first(word);
+			} else if (tag == "NN" || tag == "NNP" || tag == "NNPS" || tag == "NNS") {
+				ngram_capitalized += " "+this.capitalize_first(word);
+			} else {
+				ngram_capitalized += " "+word;
+			}
+		}
+
+		if (ngram.length > ngram_capitalized.length) {
+			/*
+			 * The POS Tagger seems to act kind of funky in some situations. 
+			 * When this happens just revert to the origional tag. 
+			 *
+			 * NOTE: It seems to just get hung up on URLs and any javascript 
+			 *       that may have been pulled in. 
+			 */
+			return ngram;
+		}
+
+		return ngram_capitalized;
+	},
+
+
+	/**
+	 * Capitalizes the first letter of the string. 
+	 *
+	 * @param String string
+	 * @return String
+	 */
+	capitalize_first: function(string) {
+		return string.charAt(0).toUpperCase()+string.slice(1);
+	},
+
+
+	/**
+	 * Returns the first n elements of an associative array. 
+	 *
+	 * @param Array arr
+	 * @param Integer n
+	 * @return Array
+	 */
+	assoc_slice: function(arr, n) {
+		var i = 0;
+		var out = Array();
+		for (var key in arr) {
+			i++;
+			out[key] = arr[key];
+
+			if (i >= n) {
+				return out;
+			}
+		}
+
+		return out;
 	},
 
 
@@ -1138,6 +1289,7 @@ if (KEYWORD_TOOLBAR_DEV_MODE) {
 	 */
 	alert("NO SYNTAX ERROR\n");
 }
+
 
 KeywordToolbarObject.init();
 

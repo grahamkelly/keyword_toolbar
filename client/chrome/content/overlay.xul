@@ -3,6 +3,12 @@
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
         
 	<script type="application/x-javascript"
+            src="chrome://keyword_toolbar/content/lexer.js" />
+	<script type="application/x-javascript"
+            src="chrome://keyword_toolbar/content/lexicon.js" />
+	<script type="application/x-javascript"
+            src="chrome://keyword_toolbar/content/POSTagger.js" />
+	<script type="application/x-javascript"
             src="chrome://keyword_toolbar/content/script.js" />
 
     <toolbox id="navigator-toolbox">
