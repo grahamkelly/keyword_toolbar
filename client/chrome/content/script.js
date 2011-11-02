@@ -676,7 +676,9 @@ var KeywordToolbarObject = {
 			keywords_str += keywords[i];
 		}
 
-		alert(keywords_str);
+
+		var keywords_label = document.getElementById("KWTool_keywords_label");
+		keywords_label.value = "Keywords: "+keywords_str;
 	},
 
 
@@ -690,7 +692,21 @@ var KeywordToolbarObject = {
 		var start = new Date().getTime();
 		var title_ngrams = this.build_ngrams(doc.title, false);		
 
-		var document_ngrams = this.build_ngrams(doc.body.textContent, false);
+		/*
+		 * Initially doc.body.textContent was used to obtain the text from the 
+		 * document. However, Firefox has a fairly poor implementation of this 
+		 * as it only strips out the HTML tags but leaves all inline JavaScript 
+		 * and CSS. 
+		 */
+		var document_text = doc.body.innerHTML;
+		document_text = document_text.replace(/<style[^>]*>(.|\n|\r)*?<\/style>/ig, '');
+		document_text = document_text.replace(/<script[^>]*>(.|\n|\r)*?<\/script>/ig, '');
+		document_text = document_text.replace(/<.*?>/g, '');
+		document_text = htmlspecialchars_decode(document_text);
+
+
+
+		var document_ngrams = this.build_ngrams(document_text,  false);
 
 
 		/* Trim the n-grams down to the top 10 and clean them up */
@@ -716,7 +732,6 @@ var KeywordToolbarObject = {
 			keywords.push(this.capitalize_ngram(keyword));
 		}
 
-		alert(keywords.length);
 
 		var end = new Date().getTime();
 
@@ -851,8 +866,8 @@ var KeywordToolbarObject = {
 			 *     2) Severely penalize n-grams that end in a stop word
 			 *     3) Give preference to n-grams that have a higher occurence of
 			 *        nouns. 
-			 *     3) Give preference to n-grams which also appear in the title
-			 *     4) Give preference to n-grams which occur more frequently
+			 *     4) Give preference to n-grams which also appear in the title
+			 *     5) Give preference to n-grams which occur more frequently
 			 *
 			 * Ranking Algorithm:
 			 *   Modifiers = (in_title_reward)*(trailing_stop_word_penalty)
@@ -963,7 +978,12 @@ var KeywordToolbarObject = {
 					stop_words_count++;
 				}
 
-				if (stop_words_count < (j-i+1)) {
+
+				/*
+				 * Only add ngrams that are not 100% stop words and that contain
+				 * at least one alphanumeric character. 
+				 */
+				if (stop_words_count < (j-i+1) && ngram_index.match(/.*\w.*/)) {
 					if (typeof ngrams[ngram_text] == "undefined") {
 						ngrams[ngram_index] = 1;
 					} else {
@@ -1030,6 +1050,61 @@ var KeywordToolbarObject = {
 
 
 	/**
+	 * Share the current document on facebook. 
+	 *
+	 * It appears that there is no good way to do this directly from the 
+	 * Facebook API when developing a browser extension. Therefore the method 
+	 * implemented is a reverse engineeered version of a bookmarklet Facebook 
+	 * developed. 
+	 * The bookmarklet can be found at: 
+	 *     https://www.facebook.com/share_options.php
+	 *
+	 * The reverse engineered code looked as follows (It has been modified to 
+	 * ease reading):
+	 *
+	 * javascript:
+	 * 
+	 * var d=document,
+	 * f='https://www.facebook.com/share',
+	 * l=d.location,
+	 * e=encodeURIComponent,
+	 * p='.php?src=bm&v=4&i=1320196759&u='+e(l.href)+'&t='+e(d.title);1;
+	 * 
+	 * try{
+	 *	 if (!/^(.*\.)?facebook\.[^.]*$/.test(l.host))
+	 *		throw(0);
+	 *	 share_internal_bookmarklet(p)
+	 * } catch(z) {
+	 *	 a=function() {
+	 *		if (!window.open(f+'r'+p,'sharer','toolbar=0,status=0,resizable=1,width=626,height=436'))
+	 *			l.href=f+p
+	 *	};
+	 *
+	 *	if (/Firefox/.test(navigator.userAgent))
+	 *		setTimeout(a,0);
+	 *	else{ 
+	 *		a()
+	 *		}
+	 * }
+	 * void(0)
+	 *
+	 *
+	 * 
+	 */
+	fb_share: function() {
+		var doc = gBrowser.contentDocument;
+		var win = gBrowser.contentWindow;
+
+		var f = 'https:www.facebook.com/sharer';
+		var location = doc.location;
+		var e = encodeURIComponent;
+		var p = '.php?src=bm&v=4&i=1320196759&u='+e(location.href)+'&t='+e(doc.title);
+
+		win.open(f+p, 'sharer', 'toolbar=0,status=0,resizable=1,width=626,height=436');
+	},
+
+
+	/**
 	 * Returns the first n elements of an associative array. 
 	 *
 	 * @param Array arr
@@ -1086,6 +1161,69 @@ var KeywordToolbarObject = {
 	},
 };
 
+
+function htmlspecialchars_decode (string, quote_style) {
+    // http://kevin.vanzonneveld.net
+    // +   original by: Mirek Slugen
+    // +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+    // +   bugfixed by: Mateusz "loonquawl" Zalega
+    // +      input by: ReverseSyntax
+    // +      input by: Slawomir Kaniecki
+    // +      input by: Scott Cariss
+    // +      input by: Francois
+    // +   bugfixed by: Onno Marsman
+    // +    revised by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+    // +   bugfixed by: Brett Zamir (http://brett-zamir.me)
+    // +      input by: Ratheous
+    // +      input by: Mailfaker (http://www.weedem.fr/)
+    // +      reimplemented by: Brett Zamir (http://brett-zamir.me)
+    // +    bugfixed by: Brett Zamir (http://brett-zamir.me)
+    // *     example 1: htmlspecialchars_decode("<p>this -&gt; &quot;</p>", 'ENT_NOQUOTES');
+    // *     returns 1: '<p>this -> &quot;</p>'
+    // *     example 2: htmlspecialchars_decode("&amp;quot;");
+    // *     returns 2: '&quot;'
+    var optTemp = 0,
+        i = 0,
+        noquotes = false;
+    if (typeof quote_style === 'undefined') {
+        quote_style = 2;
+    }
+    string = string.toString().replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    var OPTS = {
+        'ENT_NOQUOTES': 0,
+        'ENT_HTML_QUOTE_SINGLE': 1,
+        'ENT_HTML_QUOTE_DOUBLE': 2,
+        'ENT_COMPAT': 2,
+        'ENT_QUOTES': 3,
+        'ENT_IGNORE': 4
+    };
+    if (quote_style === 0) {
+        noquotes = true;
+    }
+    if (typeof quote_style !== 'number') { // Allow for a single string or an array of string flags
+        quote_style = [].concat(quote_style);
+        for (i = 0; i < quote_style.length; i++) {
+            // Resolve string input to bitwise e.g. 'PATHINFO_EXTENSION' becomes 4
+            if (OPTS[quote_style[i]] === 0) {
+                noquotes = true;
+            } else if (OPTS[quote_style[i]]) {
+                optTemp = optTemp | OPTS[quote_style[i]];
+            }
+        }
+        quote_style = optTemp;
+    }
+    if (quote_style & OPTS.ENT_HTML_QUOTE_SINGLE) {
+        string = string.replace(/&#0*39;/g, "'"); // PHP doesn't currently escape if more than one 0, but it should
+        // string = string.replace(/&apos;|&#x0*27;/g, "'"); // This would also be useful here, but not a part of PHP
+    }
+    if (!noquotes) {
+        string = string.replace(/&quot;/g, '"');
+    }
+    // Put this in last place to avoid escape being double-decoded
+    string = string.replace(/&amp;/g, '&');
+
+    return string;
+}
 
 
 /******************************************************************************\

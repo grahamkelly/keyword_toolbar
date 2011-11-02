@@ -1,0 +1,9 @@
+#KWTool_fb_share_button {
+	list-style-image: url("chrome://keyword_toolbar/skin/facebook.png");
+}
+
+#KWTool_keywords_button {
+	list-style-image: url("chrome://keyword_toolbar/skin/bar_graph.png");
+}
+
+
