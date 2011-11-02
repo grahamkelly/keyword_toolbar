@@ -1,6 +1,6 @@
-content keyword_toolbar jar:chrome/keyword_toolbar.jar!/content/
+content keyword_toolbar chrome/content/
 overlay chrome://browser/content/browser.xul chrome://keyword_toolbar/content/overlay.xul
 
 locale keyword_toolbar en-US chrome/locale/en-US/
 
-skin keyword_toolbar classic/1.0 jar:chrome/keyword_toolbar.har!/skin/
+skin keyword_toolbar classic/1.0 chrome/skin/

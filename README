@@ -4,3 +4,58 @@
   Developer(s): Graham Kelly
 
 
+  Development
+--------------------------------------------------------------------------------
+  To work on the development of the toolbar, place the code in a folder on your 
+  machine. Place a "pointer file" in firefox's extensions folder for your 
+  profile. All the pointer file should contain is the path to the folder where 
+  you placed the toolbar code. The toolbar should then be available in Firefox's
+  add-ons menu. 
+
+  You will also need to rename the client/chrome.manifest.dev file to 
+  client/chrome.manifest. The existing chrome.manifest file is used for 
+  packaging the extension for the installer. 
+
+  More information on "dynamic development" of toolbars and firefox extensions 
+  can be found at: http://www.borngeek.com/firefox/toolbar-tutorial/chapter-4/
+
+
+  To package the extension run the following commands:
+  mv client/chrome.manifest client/chrome.manifest.dev
+  mv client/chrome.manifest.install client/chrome.manifest
+  zip -r client/chrome/keyword_toolbar.jar client/chrome/content/* client/chrome/skin/*
+  zip client/keyword_toolbar.xpi client/install.rdf client/chrome.manifest client/chrome/keyword_toolbar.jar
+
+
+
+  Install
+--------------------------------------------------------------------------------
+  Simply run the keyword_toolbar.xpi file. 
+
+
+  Known Issues
+--------------------------------------------------------------------------------
+  The rather large lexicon array for the part of speech tagger causes Firefox to
+  load noticably slower than without it. Ideally this would be ported over to 
+  some sort of database system or an algorithm that does not reply on a large 
+  data set could be used. The current implementation was selected becuase it was
+  an already developed part of speech tagger for javascript. This was the only 
+  available implementation (in JS).
+
+  There are some siuations where an n-gram will either begin or end with 
+  non-alphanumeric characters. This leads to odd looking keywords in these 
+  situations. This is an easy fix. 
+
+  Because of the way text is parsed into blocks based on line breaks and 
+  sentences acronyms in the form "U.S." will miss their trailing period. 
+
+
+  Future Ideas
+--------------------------------------------------------------------------------
+  1) It might be cool if a user could hover over a keyword and all the 
+     occurences of that n-gram would be highlighted in the document. 
+
+  2) Origionally I wanted the keywords to automatically be generated when a page
+     loads. Unfortunatly this seemed to be a fairly dificult thing to do in 
+     Firefox. It would be nice to research this more and implement it. 
+

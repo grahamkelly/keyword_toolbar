@@ -1,4 +1,4 @@
-var KEYWORD_TOOLBAR_DEV_MODE = true;
+var KEYWORD_TOOLBAR_DEV_MODE = false;
 
 
 /**
